@@ -8,7 +8,9 @@ Created on Sat May  8 22:43:15 2021
 import ccxt
 import pandas as pd
 import numpy as np
+from flask import Flask, request
 
+app = Flask(__name__)
 ex=ccxt.binance()
 ex.load_markets()
 f=pd.DataFrame(ex.fetch_markets())
@@ -19,24 +21,17 @@ def comp_prev(a,shift=1):
 
 s=[]
 u=[]
+
 for symbol in symbols:
     if symbol.split('/')[1]=='BTC':
         s.append(symbol)
     if symbol.split('/')[1]=='USDT':
-        u.append(symbol.split('/')[0])
-
-#since=since = ex.milliseconds () - (75*86380000)
-symbols=[]
+        u.append(symbol)
+symbols=[]        
 for i in u:
     t=i.find('DOWN/' or 'UP/' or 'BULL/' or 'BEAR/')
     if(t==-1):
         symbols.append(i)
-
-
-def comp_prev(a,shift=1):
-    return (a.High-a.Close.shift(shift))*100/a.Close.shift(shift)#a.High
-
-
 
 def trades(ex,symbol,since):
         #since = ex.parse8601(since)
@@ -67,19 +62,8 @@ def trades(ex,symbol,since):
             else:
                     break
         #orders=pd.DataFrame(all_orders)
-
         all_orders['symbol']=symbol
-        a=all_orders
-        if(len(a)):
-          #a.datetime.sort_values()
-          a.set_index('datetime',inplace=True)
-      
-          a.index=pd.to_datetime(a.index)
-          z=a.groupby(['symbol','side']).resample('2T').agg({'price':'mean','amount':'sum','cost':'sum'}).reset_index()
-        else:
-          z=0  
-        return all_orders,z
-        
+        return all_orders
 
 def ohlcv(since,symbol,data):
         data=pd.DataFrame()
@@ -114,65 +98,61 @@ def ohlcv(since,symbol,data):
 def comp_prev_spread(a,shift=1):
         return (a.spread-a.spread.shift(shift))*100/a.spread
 
-for i in range(0,len(symbols)+1):
-    u[i]=u[i]+'/BTC'
+
 
 from datetime import datetime
 start=now = datetime.now()
 
 #for bot
 def scan_breakout(symbol,tf='5m',filters=2):
-            #all_df=pd.DataFrame()
+            all_df=pd.DataFrame()
             suspect=[]
-            #symbols=s+u
+            symbols=s
             message=[]
-            
+            sus={}
 
             df=pd.DataFrame(ex.fetch_ohlcv(symbol,tf,limit=1),columns=['Time','Open','High','Low','Close','Volume'])
             #df['Date']=pd.to_datetime(df['Time']*1000000)
             df['change']=(df['Close']-df['Open'])*100/df['Open']
-            #df['symbol']=symbol
+            df['symbol']=symbol
             df['Date']=pd.to_datetime(df['Time']*1000000)
-            suspects=df[abs(df['change'])>filters]
-            #all_df=pd.concat([df,all_df])
+            suspects=df[df['change']>filters]
+            all_df=pd.concat([df,all_df])
             if(len(suspects)):
-                #suspect.append(symbol)
-                #sus[symbol]=df['change']
-              
+                suspect.append(symbol)
+                sus[symbol]=df['change']
+                print(symbol)
                 date=df['Date'].max()
-               
-                message=(str(tf)+'  '+symbol + '        ' +str(round(df['change'].max(),2))+'%              '+str(date))
+                print(str(date))
+                message=(symbol + '    ' +str(round(df['change'].max()))+'   '+str(date))
                 
             #end=datetime.now()
             #elapsed=end-start
             #print(elapsed)
             return message
 
+
+
 from rocketgram import Bot, Dispatcher, UpdatesExecutor
 from rocketgram import context, commonfilters
 from rocketgram import SendMessage
 import time
 import nest_asyncio
-import os
-
-from flask import Flask, request
-app = Flask(__name__)
 nest_asyncio.apply()
-token = '1734451585:AAHxVsqIzY5_LlwR2-pLzQvJybXpxNYbVh4'
-#symbols=u
+token = '1756164387:AAHWjHOz5rVjzfu-uqgaaRkzsiB5mjMDFHY'
+symbols=u
 router = Dispatcher()
 bot = Bot(token, router=router)
 
 @router.handler
 @commonfilters.command('/start')
 async def start_command():
-    await SendMessage(context.user.user_id, 'Hello there!').send()
-    user=context.user.user_id
-    print(user)
+    await SendMessage(-1001455990819, 'Hello there!').send()
+
 @router.handler
 @commonfilters.command('/help')
 async def start_command():
-    await SendMessage(context.user.user_id, 'Some userful help!').send()
+    await SendMessage(-1001455990819, 'Some userful help!').send()
 @router.handler
 @commonfilters.command('/input')
 async def start_command():
@@ -188,56 +168,35 @@ async def start_command():
     for symbol in symbols:
         message=scan_breakout(symbol,tf='5m',filters=2)
         if(len(message)):
-            await SendMessage(context.user.user_id, message).send()
+            await SendMessage(-1001455990819, message).send()
 
 @router.handler
 @commonfilters.command('/scan_1m')
 async def start_command():
-
+    start=now = datetime.now()
 
     for symbol in symbols:
         message=scan_breakout(symbol,tf='1m',filters=2)
         if(len(message)):
-            await SendMessage(context.user.user_id, message).send()
+            await SendMessage(-1001455990819, message).send()
 
 @router.handler
-@commonfilters.command('/scan_5m_')
+@commonfilters.command('/scan_1m_')
 async def start_command():
-   
-    i=0
+    start=now = datetime.now()
     while True:
-      i+=1
       for symbol in symbols:
-        message=scan_breakout(symbol,tf='1m',filters=1)
+        message=scan_breakout(symbol,tf='1m',filters=2)
         if(len(message)):
-            #await SendMessage(-1001350578323, message).send()
-            since=ex.milliseconds () - (60000)
-            all_orders,z=trades(ex,symbol,since)
-            if len(z) :
-                buy=round(z[z['side']=='buy'].cost.iloc[0],5)
-                sell=round(z[z['side']=='sell'].cost.iloc[0],5)
-                pp='buy : '+str(buy)+'                           '+'Sell: ' + str(sell)
-                sellbuydiff=(buy-sell)*100/(buy+sell)
-          
-                await SendMessage(-1001350578323, message+'                     '+ pp+'                           '+'Buy sell difference %         '+str(round(sellbuydiff,3))).send()
-                #await SendMessage(-1001350578323, 'Buy/sell difference % : ' + str(sellbuydiff)).send()
-              # await SendMessage(-1001350578323, 'Volume : '+str(sellbuydiff)).send()
-
-
-      #if (i%5==0):
-       ## for symbol in symbols:
-        #  message=scan_breakout(symbol,tf='5m',filters=2)
-        #  if(len(message)):
-        #      await SendMessage(-1001455990819, message).send()
+            await SendMessage(-1001455990819, message).send()
      # await SendMessage(-1001455990819, '-----------------').send()
-      time.sleep(10)
+    time.sleep(10)
 
-user=context
-print(user)      
+        
 @router.handler
 @commonfilters.command('/scan_15m')
 async def start_command():
-    
+    start=now = datetime.now()
   
     for symbol in symbols:
         message=scan_breakout(symbol,tf='15m',filters=2)
@@ -246,5 +205,5 @@ async def start_command():
 
 
 UpdatesExecutor.run(bot)
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
+if __name__ == '__main__':
+   app.run(threaded=True)
