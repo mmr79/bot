@@ -1,1 +1,1 @@
-web: gunicorn setup:app
+web: python setup:app
