@@ -1,1 +1,1 @@
-worker: python setup:app
+web: gunicorn setup:app --log-file=-
