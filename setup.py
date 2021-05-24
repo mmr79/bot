@@ -206,4 +206,4 @@ async def start_command():
 
 UpdatesExecutor.run(bot)
 if __name__ == '__main__':
-   app.run(threaded=True)
+   app.run(debug=True, use_reloader=True)
